@@ -1,17 +1,57 @@
 pipeline {
     agent any
-  
+    environment {
+        DOCKER_CREDENTIALS = credentials('docker') 
+    }
+    tools {
+        nodejs 'testenvnode' 
+    }
     stages {
         stage ('cleanup'){
-            steps{
-                // TODO
-            }
+            steps {
+                echo 'Cleaning up workspace...'
+                deleteDir() // Verwijdert alle bestanden in de huidige workspace
+            }   
         }
+
         stage('fetch app code') {
             steps {
                 // Get some code from a GitHub repository
                 git branch: 'main', url: 'https://github.com/PXL-2TIN-DevOps-Resources/calculator-app-finished.git'
             }
         }
+
+        stage('Install Dependencies') {
+                steps {
+                    echo 'Installing Node.js dependencies...'
+                    sh 'npm install'
+                }
+            }
+
+        stage ('Build artifact'){
+                steps{
+                    sh 'docker build -t calculator-app-finished .'
+                }
+            }
+        stage ('Push artifact'){
+            steps{
+                
+                sh 'docker login -u $DOCKER_CREDENTIALS_USR -p $DOCKER_CREDENTIALS_PSW'
+                sh 'docker tag calculator-app-finished milanaaskhabova/calculator-app-finished:latest'
+                sh 'docker push milanaaskhabova/calculator-app-finished:latest'
+            }
+        }
+        stage ('deployment'){
+            steps{
+                sh 'docker rm -f calculator-app'
+                sh 'docker run -d --name calculator-app -p 3000:3000 milanaaskhabova/calculator-app-finished:latest'
+            }
+        } 
     }
+
+    post {
+        always {
+            echo 'Pipeline execution complete.'
+          }
+       }
 }
