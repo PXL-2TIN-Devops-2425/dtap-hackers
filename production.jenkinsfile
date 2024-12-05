@@ -1,9 +1,45 @@
 pipeline {
     agent any
+    environment {
+        DOCKER_IMAGE = 'milanaaskhabova/calculator-app-finished:latest'
+        REMOTE_SERVER = 'ubuntu@3.82.119.224'
+    }
     stages {
-        stage('dtap production') {
+        stage('Deploy Prod') {
             steps {
-                echo "good luck..."
+                sshagent(credentials: ['test-to-production']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no $REMOTE_SERVER "
+                        docker pull $DOCKER_IMAGE
+                        "
+                    """
+                }
+            }
+        }
+
+        stage('Start Prod') {
+            steps {
+                sshagent(credentials: ['test-to-production']) {
+                    sh """
+                    ssh $REMOTE_SERVER "
+                        docker stop calculator-app || true &&
+                        docker rm calculator-app || true &&
+                        docker run -d -p 80:3000 --name calculator-app $DOCKER_IMAGE
+                    "
+                    """
+                }
+            }
+        }
+
+        stage('Test Prod') {
+            steps {
+                sshagent(credentials: ['test-to-production']) {
+                    sh """
+                    ssh $REMOTE_SERVER "
+                        curl -o /dev/null -s -w '%{http_code}' http://localhost
+                    "
+                    """
+                }
             }
         }
     }
